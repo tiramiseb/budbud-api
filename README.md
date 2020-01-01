@@ -1,6 +1,8 @@
-# Bud(get)-Bud(dy)
+# Bud(get)-Bud(dy) API
 
 Bud-Bud is a (very) opiniated personal finance manager, running as a web service.
+
+This is the API.
 
 ## Opinions
 
@@ -18,3 +20,10 @@ Personal budget management is not accounting, and sometimes you may have weird o
 I have hard-coded a very permissive CORS. It will probably be switchable with an option. Or completely removed for production. Something like that...
 
 Well, many things must be read from a config file instead of being hard-coded...
+
+Quick&dirty:
+
+```sh
+cd cmd/budbud
+go run main.go
+```
