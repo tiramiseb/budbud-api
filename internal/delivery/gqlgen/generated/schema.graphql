@@ -1,0 +1,25 @@
+type User {
+  id: ID!
+  email: String!
+}
+
+type Workspace {
+  id: ID!
+  # owners: [User!]!
+}
+
+##### Queries
+
+directive @auth on FIELD_DEFINITION
+
+type Query {
+  me: User! @auth
+  workspaces: [Workspace!]! @auth
+}
+
+##### Mutations
+
+type Mutation {
+  login(email: String! password: String!): User!
+  logout(none: Boolean): Boolean
+}

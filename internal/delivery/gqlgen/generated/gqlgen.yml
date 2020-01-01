@@ -1,0 +1,10 @@
+schema: schema.graphql
+
+model:
+  filename: models.go
+
+models:
+  User:
+    model: github.com/tiramiseb/budbud-api/internal/ownership/model.User
+  Workspace:
+    model: github.com/tiramiseb/budbud-api/internal/ownership/model.Workspace
