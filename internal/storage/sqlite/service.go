@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"fmt"
 
 	_ "github.com/mattn/go-sqlite3" // SQL database itself, with database/sql
 )
@@ -13,12 +14,12 @@ type Service struct {
 
 // New returns a SQLite storage service
 func New(path string) (*Service, error) {
-	db, err := sql.Open("sqlite3", path)
+	dsn := fmt.Sprintf("file:%s?_foreign_keys=true", path)
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
 	}
-	s := &Service{db}
-	return s, s.checkInit()
+	return &Service{db}, nil
 }
 
 // Close closes the database
