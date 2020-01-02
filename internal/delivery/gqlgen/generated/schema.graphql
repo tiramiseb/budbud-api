@@ -3,9 +3,16 @@ type User {
   email: String!
 }
 
-type Workspace {
+type WorkspaceOwned {
   id: ID!
-  # owners: [User!]!
+  name: String!
+  guests: [User!]!
+}
+
+type WorkspaceGuest {
+  id: ID!
+  owner: User!
+  name: String!
 }
 
 ##### Queries
@@ -14,12 +21,15 @@ directive @auth on FIELD_DEFINITION
 
 type Query {
   me: User! @auth
-  workspaces: [Workspace!]! @auth
+  workspacesOwned: [WorkspaceOwned!]! @auth
+  workspacesGuest: [WorkspaceGuest!]! @auth
 }
 
 ##### Mutations
 
 type Mutation {
   login(email: String! password: String!): User!
-  logout(none: Boolean): Boolean
+  logout(none: Boolean): Boolean @auth
+
+  addWorkspace(name: String!): WorkspaceOwned! @auth
 }

@@ -38,6 +38,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	WorkspaceOwned() WorkspaceOwnedResolver
 }
 
 type DirectiveRoot struct {
@@ -46,13 +47,15 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		Login  func(childComplexity int, email string, password string) int
-		Logout func(childComplexity int, none *bool) int
+		AddWorkspace func(childComplexity int, name string) int
+		Login        func(childComplexity int, email string, password string) int
+		Logout       func(childComplexity int, none *bool) int
 	}
 
 	Query struct {
-		Me         func(childComplexity int) int
-		Workspaces func(childComplexity int) int
+		Me              func(childComplexity int) int
+		WorkspacesGuest func(childComplexity int) int
+		WorkspacesOwned func(childComplexity int) int
 	}
 
 	User struct {
@@ -60,18 +63,31 @@ type ComplexityRoot struct {
 		ID    func(childComplexity int) int
 	}
 
-	Workspace struct {
-		ID func(childComplexity int) int
+	WorkspaceGuest struct {
+		ID    func(childComplexity int) int
+		Name  func(childComplexity int) int
+		Owner func(childComplexity int) int
+	}
+
+	WorkspaceOwned struct {
+		Guests func(childComplexity int) int
+		ID     func(childComplexity int) int
+		Name   func(childComplexity int) int
 	}
 }
 
 type MutationResolver interface {
 	Login(ctx context.Context, email string, password string) (*model.User, error)
 	Logout(ctx context.Context, none *bool) (*bool, error)
+	AddWorkspace(ctx context.Context, name string) (*model.Workspace, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
-	Workspaces(ctx context.Context) ([]*model.Workspace, error)
+	WorkspacesOwned(ctx context.Context) ([]*model.Workspace, error)
+	WorkspacesGuest(ctx context.Context) ([]*model.Workspace, error)
+}
+type WorkspaceOwnedResolver interface {
+	Guests(ctx context.Context, obj *model.Workspace) ([]*model.User, error)
 }
 
 type executableSchema struct {
@@ -88,6 +104,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "Mutation.addWorkspace":
+		if e.complexity.Mutation.AddWorkspace == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addWorkspace_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.AddWorkspace(childComplexity, args["name"].(string)), true
 
 	case "Mutation.login":
 		if e.complexity.Mutation.Login == nil {
@@ -120,12 +148,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Me(childComplexity), true
 
-	case "Query.workspaces":
-		if e.complexity.Query.Workspaces == nil {
+	case "Query.workspacesGuest":
+		if e.complexity.Query.WorkspacesGuest == nil {
 			break
 		}
 
-		return e.complexity.Query.Workspaces(childComplexity), true
+		return e.complexity.Query.WorkspacesGuest(childComplexity), true
+
+	case "Query.workspacesOwned":
+		if e.complexity.Query.WorkspacesOwned == nil {
+			break
+		}
+
+		return e.complexity.Query.WorkspacesOwned(childComplexity), true
 
 	case "User.email":
 		if e.complexity.User.Email == nil {
@@ -141,12 +176,47 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.ID(childComplexity), true
 
-	case "Workspace.id":
-		if e.complexity.Workspace.ID == nil {
+	case "WorkspaceGuest.id":
+		if e.complexity.WorkspaceGuest.ID == nil {
 			break
 		}
 
-		return e.complexity.Workspace.ID(childComplexity), true
+		return e.complexity.WorkspaceGuest.ID(childComplexity), true
+
+	case "WorkspaceGuest.name":
+		if e.complexity.WorkspaceGuest.Name == nil {
+			break
+		}
+
+		return e.complexity.WorkspaceGuest.Name(childComplexity), true
+
+	case "WorkspaceGuest.owner":
+		if e.complexity.WorkspaceGuest.Owner == nil {
+			break
+		}
+
+		return e.complexity.WorkspaceGuest.Owner(childComplexity), true
+
+	case "WorkspaceOwned.guests":
+		if e.complexity.WorkspaceOwned.Guests == nil {
+			break
+		}
+
+		return e.complexity.WorkspaceOwned.Guests(childComplexity), true
+
+	case "WorkspaceOwned.id":
+		if e.complexity.WorkspaceOwned.ID == nil {
+			break
+		}
+
+		return e.complexity.WorkspaceOwned.ID(childComplexity), true
+
+	case "WorkspaceOwned.name":
+		if e.complexity.WorkspaceOwned.Name == nil {
+			break
+		}
+
+		return e.complexity.WorkspaceOwned.Name(childComplexity), true
 
 	}
 	return 0, false
@@ -210,115 +280,40 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var parsedSchema = gqlparser.MustLoadSchema(
-	&ast.Source{Name: "schema.graphql", Input: `# Meta
-
-# type Date {
-#   year: Int!
-#   month: Int!
-#   day: Int!
-# }
-
-type User {
+	&ast.Source{Name: "schema.graphql", Input: `type User {
   id: ID!
   email: String!
-  # workspaces: [Workspace!]!
 }
 
-type Workspace {
+type WorkspaceOwned {
   id: ID!
-  # owners: [User!]!
-  # accounts: [Account!]!
-  # superCategories: [SuperCategory!]!
+  name: String!
+  guests: [User!]!
 }
 
-# # Account and category
+type WorkspaceGuest {
+  id: ID!
+  owner: User!
+  name: String!
+}
 
-# type Account {
-#   id: ID!
-#   name: String!
-#   workspace: Workspace!
-#   operations: [Operation!]!
-#   plannedOperations: [PlannedOperation!]!
-#   transfers: [Transfer!]!
-# }
-
-# type SuperCategory {
-#   id: ID!
-#   name: String!
-#   workspace: Workspace!
-#   categories: [Category!]!
-# }
-
-# # You know that you will spend that much in this category
-# type Category {
-#   id: ID!
-#   name: String!
-#   superCategory: SuperCategory!
-#   order: Int! # Order of the category amongst other categories
-#   amount: Int! # Total planned monthly amount for this category (in cents)
-#   months: [Int!]! # On which months to plan this amount (1-12)
-# }
-
-# # Operation
-
-# type Operation {
-#   id: ID!
-#   date: Date!
-#   description: String!
-#   amount: Int! # In cents
-#   ignore: Boolean
-#   account: Account # Account may be null only for ignored operations
-#   category: Category # Category may be null only for ignored operations
-#   relatedTo: [Operation!] # Does this operation need to be associated to one or more other operation(s)?
-# }
-
-# # You know that this operation WILL occur on a regular basis
-# type PlannedOperation {
-#   id: ID!
-#   description: String!
-#   account: Account!
-#   category: Category!
-#   amount: Int! # Monthly amount (ADDED to the category planned amount) (in cents)
-#   months: [Int!]! # On which months to plan this amount (1-12)
-# }
-
-# type Transfer {
-#   id: ID!
-#   date: Date!
-#   from: Account!
-#   to: Account!
-#   amount: Int! # In cents
-# }
-
-# # Queries
+##### Queries
 
 directive @auth on FIELD_DEFINITION
 
 type Query {
   me: User! @auth
-  workspaces: [Workspace!]! @auth
-#   categories: [Category!]!
-#   operations: [Operation!]!
-#   plannedOperations: [PlannedOperation!]!
+  workspacesOwned: [WorkspaceOwned!]! @auth
+  workspacesGuest: [WorkspaceGuest!]! @auth
 }
 
-# # Mutations
-
-# input NewAccount {
-#   name: String!
-# }
-
-# input NewOperation {
-#   description: String!
-#   amount: Int!
-# }
+##### Mutations
 
 type Mutation {
   login(email: String! password: String!): User!
-  logout(none: Boolean): Boolean
+  logout(none: Boolean): Boolean @auth
 
-#   createAccount(input: NewAccount!): Account!
-#   createOperation(input: NewOperation!): Operation!
+  addWorkspace(name: String!): WorkspaceOwned! @auth
 }
 `},
 )
@@ -326,6 +321,20 @@ type Mutation {
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_addWorkspace_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["name"]; ok {
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["name"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -482,8 +491,28 @@ func (ec *executionContext) _Mutation_logout(ctx context.Context, field graphql.
 	rctx.Args = args
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().Logout(rctx, args["none"].(*bool))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().Logout(rctx, args["none"].(*bool))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			if ec.directives.Auth == nil {
+				return nil, errors.New("directive auth is not implemented")
+			}
+			return ec.directives.Auth(ctx, nil, directive0)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*bool); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *bool`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -496,6 +525,70 @@ func (ec *executionContext) _Mutation_logout(ctx context.Context, field graphql.
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
 	return ec.marshalOBoolean2ᚖbool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_addWorkspace(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Mutation",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_addWorkspace_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	rctx.Args = args
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().AddWorkspace(rctx, args["name"].(string))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			if ec.directives.Auth == nil {
+				return nil, errors.New("directive auth is not implemented")
+			}
+			return ec.directives.Auth(ctx, nil, directive0)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*model.Workspace); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *github.com/tiramiseb/budbud-api/internal/ownership/model.Workspace`, tmp)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Workspace)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNWorkspaceOwned2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -555,7 +648,7 @@ func (ec *executionContext) _Query_me(ctx context.Context, field graphql.Collect
 	return ec.marshalNUser2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Query_workspaces(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_workspacesOwned(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -575,7 +668,7 @@ func (ec *executionContext) _Query_workspaces(ctx context.Context, field graphql
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		directive0 := func(rctx context.Context) (interface{}, error) {
 			ctx = rctx // use context from middleware stack in children
-			return ec.resolvers.Query().Workspaces(rctx)
+			return ec.resolvers.Query().WorkspacesOwned(rctx)
 		}
 		directive1 := func(ctx context.Context) (interface{}, error) {
 			if ec.directives.Auth == nil {
@@ -609,7 +702,64 @@ func (ec *executionContext) _Query_workspaces(ctx context.Context, field graphql
 	res := resTmp.([]*model.Workspace)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNWorkspace2ᚕᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspaceᚄ(ctx, field.Selections, res)
+	return ec.marshalNWorkspaceOwned2ᚕᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspaceᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_workspacesGuest(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Query().WorkspacesGuest(rctx)
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			if ec.directives.Auth == nil {
+				return nil, errors.New("directive auth is not implemented")
+			}
+			return ec.directives.Auth(ctx, nil, directive0)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.([]*model.Workspace); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be []*github.com/tiramiseb/budbud-api/internal/ownership/model.Workspace`, tmp)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Workspace)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNWorkspaceGuest2ᚕᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspaceᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -761,7 +911,7 @@ func (ec *executionContext) _User_email(ctx context.Context, field graphql.Colle
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Workspace_id(ctx context.Context, field graphql.CollectedField, obj *model.Workspace) (ret graphql.Marshaler) {
+func (ec *executionContext) _WorkspaceGuest_id(ctx context.Context, field graphql.CollectedField, obj *model.Workspace) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -771,7 +921,7 @@ func (ec *executionContext) _Workspace_id(ctx context.Context, field graphql.Col
 		ec.Tracer.EndFieldExecution(ctx)
 	}()
 	rctx := &graphql.ResolverContext{
-		Object:   "Workspace",
+		Object:   "WorkspaceGuest",
 		Field:    field,
 		Args:     nil,
 		IsMethod: false,
@@ -796,6 +946,191 @@ func (ec *executionContext) _Workspace_id(ctx context.Context, field graphql.Col
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
 	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _WorkspaceGuest_owner(ctx context.Context, field graphql.CollectedField, obj *model.Workspace) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "WorkspaceGuest",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Owner, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.User)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNUser2githubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _WorkspaceGuest_name(ctx context.Context, field graphql.CollectedField, obj *model.Workspace) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "WorkspaceGuest",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _WorkspaceOwned_id(ctx context.Context, field graphql.CollectedField, obj *model.Workspace) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "WorkspaceOwned",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _WorkspaceOwned_name(ctx context.Context, field graphql.CollectedField, obj *model.Workspace) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "WorkspaceOwned",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _WorkspaceOwned_guests(ctx context.Context, field graphql.CollectedField, obj *model.Workspace) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "WorkspaceOwned",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.WorkspaceOwned().Guests(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.User)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐUserᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -1979,6 +2314,11 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			}
 		case "logout":
 			out.Values[i] = ec._Mutation_logout(ctx, field)
+		case "addWorkspace":
+			out.Values[i] = ec._Mutation_addWorkspace(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2019,7 +2359,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}
 				return res
 			})
-		case "workspaces":
+		case "workspacesOwned":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
 				defer func() {
@@ -2027,7 +2367,21 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_workspaces(ctx, field)
+				res = ec._Query_workspacesOwned(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "workspacesGuest":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workspacesGuest(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -2080,22 +2434,78 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
-var workspaceImplementors = []string{"Workspace"}
+var workspaceGuestImplementors = []string{"WorkspaceGuest"}
 
-func (ec *executionContext) _Workspace(ctx context.Context, sel ast.SelectionSet, obj *model.Workspace) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.RequestContext, sel, workspaceImplementors)
+func (ec *executionContext) _WorkspaceGuest(ctx context.Context, sel ast.SelectionSet, obj *model.Workspace) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.RequestContext, sel, workspaceGuestImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	var invalids uint32
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("Workspace")
+			out.Values[i] = graphql.MarshalString("WorkspaceGuest")
 		case "id":
-			out.Values[i] = ec._Workspace_id(ctx, field, obj)
+			out.Values[i] = ec._WorkspaceGuest_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "owner":
+			out.Values[i] = ec._WorkspaceGuest_owner(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "name":
+			out.Values[i] = ec._WorkspaceGuest_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var workspaceOwnedImplementors = []string{"WorkspaceOwned"}
+
+func (ec *executionContext) _WorkspaceOwned(ctx context.Context, sel ast.SelectionSet, obj *model.Workspace) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.RequestContext, sel, workspaceOwnedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkspaceOwned")
+		case "id":
+			out.Values[i] = ec._WorkspaceOwned_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "name":
+			out.Values[i] = ec._WorkspaceOwned_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "guests":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._WorkspaceOwned_guests(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2398,21 +2808,7 @@ func (ec *executionContext) marshalNUser2githubᚗcomᚋtiramisebᚋbudbudᚑapi
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
-	if v == nil {
-		if !ec.HasError(graphql.GetResolverContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	return ec._User(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNWorkspace2githubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v model.Workspace) graphql.Marshaler {
-	return ec._Workspace(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNWorkspace2ᚕᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspaceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Workspace) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.User) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -2436,7 +2832,7 @@ func (ec *executionContext) marshalNWorkspace2ᚕᚖgithubᚗcomᚋtiramisebᚋb
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNWorkspace2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx, sel, v[i])
+			ret[i] = ec.marshalNUser2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐUser(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -2449,14 +2845,116 @@ func (ec *executionContext) marshalNWorkspace2ᚕᚖgithubᚗcomᚋtiramisebᚋb
 	return ret
 }
 
-func (ec *executionContext) marshalNWorkspace2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v *model.Workspace) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		if !ec.HasError(graphql.GetResolverContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
 		}
 		return graphql.Null
 	}
-	return ec._Workspace(ctx, sel, v)
+	return ec._User(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkspaceGuest2githubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v model.Workspace) graphql.Marshaler {
+	return ec._WorkspaceGuest(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWorkspaceGuest2ᚕᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspaceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Workspace) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		rctx := &graphql.ResolverContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithResolverContext(ctx, rctx)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNWorkspaceGuest2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkspaceGuest2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v *model.Workspace) graphql.Marshaler {
+	if v == nil {
+		if !ec.HasError(graphql.GetResolverContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._WorkspaceGuest(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWorkspaceOwned2githubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v model.Workspace) graphql.Marshaler {
+	return ec._WorkspaceOwned(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWorkspaceOwned2ᚕᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspaceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Workspace) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		rctx := &graphql.ResolverContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithResolverContext(ctx, rctx)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNWorkspaceOwned2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkspaceOwned2ᚖgithubᚗcomᚋtiramisebᚋbudbudᚑapiᚋinternalᚋownershipᚋmodelᚐWorkspace(ctx context.Context, sel ast.SelectionSet, v *model.Workspace) graphql.Marshaler {
+	if v == nil {
+		if !ec.HasError(graphql.GetResolverContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._WorkspaceOwned(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
