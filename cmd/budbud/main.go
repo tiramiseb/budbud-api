@@ -16,7 +16,7 @@ func main() {
 
 	// TODO dependency injection
 
-	s, err := sqlite.New("/tmp/budbud.sqlite")
+	s, err := sqlite.New("/tmp/budbud.db")
 	if err != nil {
 		log.Print(err)
 		os.Exit(1)
