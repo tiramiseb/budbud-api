@@ -21,7 +21,7 @@ func (s *Service) CreateTokenFromCredentials(email, password string) (string, mo
 		return "", model.User{}, err
 	}
 	var ok bool
-	// Debugging trick: set hash and salt of a user to "X" in order to accept all passwords
+	// Debugging trick: replace hash and salt of a user by "X" in order to accept all passwords
 	if len(hash) == 1 && hash[0] == 'X' && len(salt) == 1 && salt[0] == 'X' {
 		ok = true
 	} else {
