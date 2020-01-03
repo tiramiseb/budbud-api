@@ -8,9 +8,27 @@ import (
 
 // AddWorkspace adds a new workspace and puts the given user as its owner
 func (s *Service) AddWorkspace(userID, name string) (*model.Workspace, error) {
-	// if _, err := s.db.Exec("INSERT INTO workspace (id, name) VALUES")
-	// TODO
-	return nil, nil
+	result, err := s.db.Exec("INSERT INTO workspace (owner_email, name) VALUES (?, ?)", userID, name)
+	if err != nil {
+		return nil, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	workspace := model.Workspace{
+		Owner: model.User{},
+	}
+	if err := s.db.QueryRow(
+		`SELECT workspace.id, workspace.name, user.email, user.email
+		FROM workspace
+		INNER JOIN user ON workspace.owner_email=user.email
+		WHERE workspace.id=?`,
+		id,
+	).Scan(&workspace.ID, &workspace.Name, &workspace.Owner.ID, &workspace.Owner.Email); err != nil {
+		return nil, fmt.Errorf("Cannot get user data: %w", err)
+	}
+	return &workspace, nil
 }
 
 // GetWorkspacesOwned returns the list of workspaces owned by a user
