@@ -4,8 +4,6 @@ import (
 	"log"
 	"os"
 
-	// "github.com/tiramiseb/budbud-api/internal/delivery/gqlgen"
-
 	"github.com/tiramiseb/budbud-api/internal/authn"
 	"github.com/tiramiseb/budbud-api/internal/delivery/gqlgen"
 	"github.com/tiramiseb/budbud-api/internal/ownership"
