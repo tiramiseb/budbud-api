@@ -4,11 +4,11 @@ import (
 	"github.com/tiramiseb/budbud-api/internal/delivery/gqlgen/generated"
 )
 
-type workspaceOwned struct {
+type workspace struct {
 	srv *Service
 }
 
-// WorkspaceOwned returns the owned workspace resolver
-func (s *Service) WorkspaceOwned() generated.WorkspaceOwnedResolver {
-	return &workspaceOwned{s}
+// Workspace returns the owned workspace resolver
+func (s *Service) Workspace() generated.WorkspaceResolver {
+	return &workspace{s}
 }

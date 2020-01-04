@@ -2,68 +2,48 @@ package sqlite
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/tiramiseb/budbud-api/internal/ownership/model"
 )
 
-// AddWorkspace adds a new workspace and puts the given user as its owner
+// AddWorkspace adds a new workspace
 func (s *Service) AddWorkspace(userID, name string) (*model.Workspace, error) {
 	result, err := s.db.Exec("INSERT INTO workspace (owner_email, name) VALUES (?, ?)", userID, name)
 	if err != nil {
 		return nil, err
 	}
 	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
+	return s.GetWorkspaceForUser(userID, strconv.FormatInt(id, 10))
+}
+
+// GetWorkspaceForUser returns the given workspace
+func (s *Service) GetWorkspaceForUser(userID, id string) (*model.Workspace, error) {
 	workspace := model.Workspace{
 		Owner: model.User{},
 	}
-	if err := s.db.QueryRow(
+	err := s.db.QueryRow(
 		`SELECT workspace.id, workspace.name, user.email, user.email
 		FROM workspace
 		INNER JOIN user ON workspace.owner_email=user.email
-		WHERE workspace.id=?`,
-		id,
-	).Scan(&workspace.ID, &workspace.Name, &workspace.Owner.ID, &workspace.Owner.Email); err != nil {
-		return nil, fmt.Errorf("Cannot get user data: %w", err)
-	}
-	return &workspace, nil
+		LEFT JOIN workspace_guest ON workspace_guest.workspace_id=workspace.id
+		WHERE (workspace.owner_email=? OR workspace_guest.user_email=?) AND workspace.id=?`,
+		userID, userID, id,
+	).Scan(&workspace.ID, &workspace.Name, &workspace.Owner.ID, &workspace.Owner.Email)
+	return &workspace, err
 }
 
-// GetWorkspacesOwned returns the list of workspaces owned by a user
-func (s *Service) GetWorkspacesOwned(userID string) ([]*model.Workspace, error) {
-	rows, err := s.db.Query(
-		`SELECT workspace.id, workspace.name
-		FROM workspace
-		WHERE workspace.owner_email=?`,
-		userID)
-	if err != nil {
-		return nil, fmt.Errorf("Cannot get workspaces owned by user ID %s: %w", userID, err)
-	}
-	defer rows.Close()
-	var workspaces []*model.Workspace
-	for rows.Next() {
-		workspace := model.Workspace{}
-		if err := rows.Scan(&workspace.ID, &workspace.Name); err != nil {
-			return nil, err
-		}
-		workspaces = append(workspaces, &workspace)
-	}
-	return workspaces, nil
-}
-
-// GetWorkspacesGuest returns the list of workspaces a user is invited to
-func (s *Service) GetWorkspacesGuest(userID string) ([]*model.Workspace, error) {
+// GetAllWorkspacesForUser returns the list of workspaces a user has access to
+func (s *Service) GetAllWorkspacesForUser(userID string) ([]*model.Workspace, error) {
 	rows, err := s.db.Query(
 		`SELECT workspace.id, workspace.name, user.email, user.email
 		FROM workspace
 		INNER JOIN user ON workspace.owner_email=user.email
-		INNER JOIN workspace_guest ON workspace_guest.workspace_id=workspace.id
-		WHERE workspace_guest.user_email=?`,
-		userID)
+		LEFT JOIN workspace_guest ON workspace_guest.workspace_id=workspace.id
+		WHERE workspace.owner_email=? OR workspace_guest.user_email=?`,
+		userID, userID)
 	if err != nil {
-		return nil, fmt.Errorf("Cannot get workspaces having user ID %s as guest: %w", userID, err)
+		return nil, fmt.Errorf("Cannot get workspaces for user ID %s: %w", userID, err)
 	}
 	defer rows.Close()
 	var workspaces []*model.Workspace

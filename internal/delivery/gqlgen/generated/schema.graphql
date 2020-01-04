@@ -1,19 +1,24 @@
+
+##### Ownership
+
 type User {
   id: ID!
   email: String!
 }
 
-type WorkspaceOwned {
+type Workspace {
   id: ID!
+  owner: User
   name: String!
   guests: [User!]!
+  # categories: [Category!]!
 }
 
-type WorkspaceGuest {
-  id: ID!
-  owner: User!
-  name: String!
-}
+# type Category {
+#   id: ID!
+#   name: String!
+#   workspace: Workspace!
+# }
 
 ##### Queries
 
@@ -21,8 +26,8 @@ directive @auth on FIELD_DEFINITION
 
 type Query {
   me: User! @auth
-  workspacesOwned: [WorkspaceOwned!]! @auth
-  workspacesGuest: [WorkspaceGuest!]! @auth
+  workspaces: [Workspace!]! @auth
+  workspace(id:String!): Workspace! @auth
 }
 
 ##### Mutations
@@ -31,5 +36,5 @@ type Mutation {
   login(email: String! password: String!): User!
   logout(none: Boolean): Boolean @auth
 
-  addWorkspace(name: String!): WorkspaceOwned! @auth
+  addWorkspace(name: String!): Workspace! @auth
 }

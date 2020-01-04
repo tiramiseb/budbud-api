@@ -6,7 +6,5 @@ model:
 models:
   User:
     model: github.com/tiramiseb/budbud-api/internal/ownership/model.User
-  WorkspaceOwned:
-    model: github.com/tiramiseb/budbud-api/internal/ownership/model.Workspace
-  WorkspaceGuest:
+  Workspace:
     model: github.com/tiramiseb/budbud-api/internal/ownership/model.Workspace

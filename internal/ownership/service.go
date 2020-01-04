@@ -5,8 +5,8 @@ import "github.com/tiramiseb/budbud-api/internal/ownership/model"
 // Storage is storage for ownership
 type Storage interface {
 	AddWorkspace(userID, name string) (*model.Workspace, error)
-	GetWorkspacesOwned(userID string) ([]*model.Workspace, error)
-	GetWorkspacesGuest(userID string) ([]*model.Workspace, error)
+	GetWorkspaceForUser(userID, id string) (*model.Workspace, error)
+	GetAllWorkspacesForUser(userID string) ([]*model.Workspace, error)
 	GetWorkspaceGuests(workspaceID string) ([]*model.User, error)
 }
 
@@ -25,14 +25,14 @@ func (s *Service) AddWorkspace(userID, name string) (*model.Workspace, error) {
 	return s.stor.AddWorkspace(userID, name)
 }
 
-// GetWorkspacesOwned returns all workspaces owned by a user
-func (s *Service) GetWorkspacesOwned(userID string) ([]*model.Workspace, error) {
-	return s.stor.GetWorkspacesOwned(userID)
+// GetWorkspaceForUser returns all workspaces a user has access to
+func (s *Service) GetWorkspaceForUser(userID, id string) (*model.Workspace, error) {
+	return s.stor.GetWorkspaceForUser(userID, id)
 }
 
-// GetWorkspacesGuest returns all workspaces a user has access to as a guest
-func (s *Service) GetWorkspacesGuest(userID string) ([]*model.Workspace, error) {
-	return s.stor.GetWorkspacesGuest(userID)
+// GetAllWorkspacesForUser returns all workspaces a user has access to
+func (s *Service) GetAllWorkspacesForUser(userID string) ([]*model.Workspace, error) {
+	return s.stor.GetAllWorkspacesForUser(userID)
 }
 
 // GetWorkspaceGuests returns all non-owner users of a workspace
