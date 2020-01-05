@@ -14,11 +14,11 @@ func (s *Service) AddWorkspace(userID, name string) (*model.Workspace, error) {
 		return nil, err
 	}
 	id, err := result.LastInsertId()
-	return s.GetWorkspaceForUser(userID, strconv.FormatInt(id, 10))
+	return s.GetWorkspaceForUserByID(userID, strconv.FormatInt(id, 10))
 }
 
-// GetWorkspaceForUser returns the given workspace
-func (s *Service) GetWorkspaceForUser(userID, id string) (*model.Workspace, error) {
+// GetWorkspaceForUserByID returns the given workspace
+func (s *Service) GetWorkspaceForUserByID(userID, id string) (*model.Workspace, error) {
 	workspace := model.Workspace{
 		Owner: model.User{},
 	}
@@ -29,6 +29,22 @@ func (s *Service) GetWorkspaceForUser(userID, id string) (*model.Workspace, erro
 		LEFT JOIN workspace_guest ON workspace_guest.workspace_id=workspace.id
 		WHERE (workspace.owner_email=? OR workspace_guest.user_email=?) AND workspace.id=?`,
 		userID, userID, id,
+	).Scan(&workspace.ID, &workspace.Name, &workspace.Owner.ID, &workspace.Owner.Email)
+	return &workspace, err
+}
+
+// GetWorkspaceForUserByOwnerAndName returns the given workspace
+func (s *Service) GetWorkspaceForUserByOwnerAndName(userID, ownerID, name string) (*model.Workspace, error) {
+	workspace := model.Workspace{
+		Owner: model.User{},
+	}
+	err := s.db.QueryRow(
+		`SELECT workspace.id, workspace.name, user.email, user.email
+		FROM workspace
+		INNER JOIN user ON workspace.owner_email=user.email
+		LEFT JOIN workspace_guest ON workspace_guest.workspace_id=workspace.id
+		WHERE (workspace.owner_email=? OR workspace_guest.user_email=?) AND (workspace.owner_email=? AND workspace.name=?)`,
+		userID, userID, ownerID, name,
 	).Scan(&workspace.ID, &workspace.Name, &workspace.Owner.ID, &workspace.Owner.Email)
 	return &workspace, err
 }
