@@ -24,7 +24,7 @@ Well, many things must be read from a config file instead of being hard-coded...
 Quick&dirty:
 
 ```sh
-sqlite3 /tmp/budbud.db < sqlite-init.sql
-sqlite3 /tmp/budbud.db < sqlite-demo.sql
+sqlite3 /tmp/budbud.db < internal/storage/sqlite/sqlite-init.sql
+sqlite3 /tmp/budbud.db < internal/storage/sqlite/sqlite-demo.sql
 go run cmd/budbud/main.go
 ```
