@@ -54,7 +54,7 @@ type ComplexityRoot struct {
 
 	Query struct {
 		Me         func(childComplexity int) int
-		Workspace  func(childComplexity int, id *string, ownerID *string, name *string) int
+		Workspace  func(childComplexity int, id *string, ownerEmail *string, name *string) int
 		Workspaces func(childComplexity int) int
 	}
 
@@ -79,7 +79,7 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Me(ctx context.Context) (*model.User, error)
 	Workspaces(ctx context.Context) ([]*model.Workspace, error)
-	Workspace(ctx context.Context, id *string, ownerID *string, name *string) (*model.Workspace, error)
+	Workspace(ctx context.Context, id *string, ownerEmail *string, name *string) (*model.Workspace, error)
 }
 type WorkspaceResolver interface {
 	Guests(ctx context.Context, obj *model.Workspace) ([]*model.User, error)
@@ -153,7 +153,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Workspace(childComplexity, args["id"].(*string), args["ownerId"].(*string), args["name"].(*string)), true
+		return e.complexity.Query.Workspace(childComplexity, args["id"].(*string), args["ownerEmail"].(*string), args["name"].(*string)), true
 
 	case "Query.workspaces":
 		if e.complexity.Query.Workspaces == nil {
@@ -295,7 +295,7 @@ directive @auth on FIELD_DEFINITION
 type Query {
   me: User! @auth
   workspaces: [Workspace!]! @auth
-  workspace(id: String, ownerId: String, name: String): Workspace! @auth
+  workspace(id: String, ownerEmail: String, name: String): Workspace! @auth
 }
 
 ##### Mutations
@@ -389,13 +389,13 @@ func (ec *executionContext) field_Query_workspace_args(ctx context.Context, rawA
 	}
 	args["id"] = arg0
 	var arg1 *string
-	if tmp, ok := rawArgs["ownerId"]; ok {
+	if tmp, ok := rawArgs["ownerEmail"]; ok {
 		arg1, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["ownerId"] = arg1
+	args["ownerEmail"] = arg1
 	var arg2 *string
 	if tmp, ok := rawArgs["name"]; ok {
 		arg2, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
@@ -753,7 +753,7 @@ func (ec *executionContext) _Query_workspace(ctx context.Context, field graphql.
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		directive0 := func(rctx context.Context) (interface{}, error) {
 			ctx = rctx // use context from middleware stack in children
-			return ec.resolvers.Query().Workspace(rctx, args["id"].(*string), args["ownerId"].(*string), args["name"].(*string))
+			return ec.resolvers.Query().Workspace(rctx, args["id"].(*string), args["ownerEmail"].(*string), args["name"].(*string))
 		}
 		directive1 := func(ctx context.Context) (interface{}, error) {
 			if ec.directives.Auth == nil {

@@ -33,8 +33,14 @@ func (s *Service) GetWorkspaceForUserByID(userID, id string) (*model.Workspace, 
 	return &workspace, err
 }
 
-// GetWorkspaceForUserByOwnerAndName returns the given workspace
-func (s *Service) GetWorkspaceForUserByOwnerAndName(userID, ownerID, name string) (*model.Workspace, error) {
+// GetWorkspaceForUserByOwnerIDAndName returns the given workspace
+func (s *Service) GetWorkspaceForUserByOwnerIDAndName(userID, ownerID, name string) (*model.Workspace, error) {
+	// Owner ID being owner email, it's the same request
+	return s.GetWorkspaceForUserByOwnerEmailAndName(userID, ownerID, name)
+}
+
+// GetWorkspaceForUserByOwnerEmailAndName returns the given workspace
+func (s *Service) GetWorkspaceForUserByOwnerEmailAndName(userID, ownerEmail, name string) (*model.Workspace, error) {
 	workspace := model.Workspace{
 		Owner: model.User{},
 	}
@@ -44,7 +50,7 @@ func (s *Service) GetWorkspaceForUserByOwnerAndName(userID, ownerID, name string
 		INNER JOIN user ON workspace.owner_email=user.email
 		LEFT JOIN workspace_guest ON workspace_guest.workspace_id=workspace.id
 		WHERE (workspace.owner_email=? OR workspace_guest.user_email=?) AND (workspace.owner_email=? AND workspace.name=?)`,
-		userID, userID, ownerID, name,
+		userID, userID, ownerEmail, name,
 	).Scan(&workspace.ID, &workspace.Name, &workspace.Owner.ID, &workspace.Owner.Email)
 	return &workspace, err
 }

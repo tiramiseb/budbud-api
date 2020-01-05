@@ -10,7 +10,8 @@ import (
 type Storage interface {
 	AddWorkspace(userID, name string) (*model.Workspace, error)
 	GetWorkspaceForUserByID(userID, id string) (*model.Workspace, error)
-	GetWorkspaceForUserByOwnerAndName(userID, ownerID, name string) (*model.Workspace, error)
+	GetWorkspaceForUserByOwnerIDAndName(userID, ownerID, name string) (*model.Workspace, error)
+	GetWorkspaceForUserByOwnerEmailAndName(userID, ownerEmail, name string) (*model.Workspace, error)
 	GetAllWorkspacesForUser(userID string) ([]*model.Workspace, error)
 	GetWorkspaceGuests(workspaceID string) ([]*model.User, error)
 }
@@ -38,18 +39,19 @@ func (s *Service) AddWorkspace(userID, name string) (*model.Workspace, error) {
 // One of the following must be provided (resolution order is the order of the list):
 // * id to return a workspace identified by its ID
 // * ownerID and name to return a corresponding workspace, accessible to the giben userID
+// * ownerEmail and name to return a corresponding workspace, accessible to the giben userID
 // * name to return a workspace with that name owned by the given userID
-func (s *Service) GetWorkspaceForUser(userID, id, ownerID, name string) (*model.Workspace, error) {
+func (s *Service) GetWorkspaceForUser(userID, id, ownerID, ownerEmail, name string) (*model.Workspace, error) {
 	if id != "" {
 		return s.stor.GetWorkspaceForUserByID(userID, id)
 	}
 	if name == "" {
 		return nil, errors.New("ID and name cannot be both empty")
 	}
-	if ownerID == "" {
-		ownerID = userID
+	if ownerEmail == "" {
+		return s.stor.GetWorkspaceForUserByOwnerIDAndName(userID, userID, name)
 	}
-	return s.stor.GetWorkspaceForUserByOwnerAndName(userID, ownerID, name)
+	return s.stor.GetWorkspaceForUserByOwnerEmailAndName(userID, ownerEmail, name)
 }
 
 // GetAllWorkspacesForUser returns all workspaces a user has access to

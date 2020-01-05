@@ -27,7 +27,7 @@ directive @auth on FIELD_DEFINITION
 type Query {
   me: User! @auth
   workspaces: [Workspace!]! @auth
-  workspace(id: String, ownerId: String, name: String): Workspace! @auth
+  workspace(id: String, ownerEmail: String, name: String): Workspace! @auth
 }
 
 ##### Mutations
