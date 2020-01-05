@@ -14,7 +14,7 @@ type Service struct {
 
 // New returns a SQLite storage service
 func New(path string) (*Service, error) {
-	dsn := fmt.Sprintf("file:%s?_foreign_keys=true", path)
+	dsn := fmt.Sprintf("file:%s?_foreign_keys=true&cache=shared", path)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
