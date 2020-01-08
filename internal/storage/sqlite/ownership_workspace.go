@@ -103,3 +103,46 @@ func (s *Service) GetWorkspaceGuests(workspaceID string) ([]*model.User, error) 
 	}
 	return users, nil
 }
+
+// GetWorkspaceCategories returns the list of categories of a workspace
+func (s *Service) GetWorkspaceCategories(workspaceID string) ([]*model.SuperCategory, error) {
+	rows, err := s.db.Query(
+		`SELECT supercategory.id, supercategory.name, category.id, category.name
+		FROM category
+		INNER JOIN supercategory ON category.supercategory_id=supercategory.id
+		WHERE supercategory.workspace_id=?`,
+		workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot get categories for workspace ID %s: %w", workspaceID, err)
+	}
+	defer rows.Close()
+	supercategories := map[string]*model.SuperCategory{}
+	for rows.Next() {
+		category := model.Category{}
+		var superid string
+		var supername string
+		if err := rows.Scan(&superid, &supername, &category.ID, &category.Name); err != nil {
+			return nil, err
+		}
+		super, ok := supercategories[superid]
+		if ok {
+			super.Categories = append(super.Categories, category)
+			continue
+		}
+		super = &model.SuperCategory{
+			ID:   superid,
+			Name: supername,
+			Categories: []model.Category{
+				category,
+			},
+		}
+		supercategories[superid] = super
+	}
+	result := make([]*model.SuperCategory, len(supercategories))
+	i := 0
+	for _, sup := range supercategories {
+		result[i] = sup
+		i++
+	}
+	return result, nil
+}

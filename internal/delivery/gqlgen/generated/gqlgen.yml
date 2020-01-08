@@ -8,3 +8,7 @@ models:
     model: github.com/tiramiseb/budbud-api/internal/ownership/model.User
   Workspace:
     model: github.com/tiramiseb/budbud-api/internal/ownership/model.Workspace
+  Category:
+    model: github.com/tiramiseb/budbud-api/internal/ownership/model.Category
+  SuperCategory:
+    model: github.com/tiramiseb/budbud-api/internal/ownership/model.SuperCategory

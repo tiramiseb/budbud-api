@@ -14,6 +14,7 @@ type Storage interface {
 	GetWorkspaceForUserByOwnerEmailAndName(userID, ownerEmail, name string) (*model.Workspace, error)
 	GetAllWorkspacesForUser(userID string) ([]*model.Workspace, error)
 	GetWorkspaceGuests(workspaceID string) ([]*model.User, error)
+	GetWorkspaceCategories(workspaceID string) ([]*model.SuperCategory, error)
 }
 
 // Service is an ownership service
@@ -62,4 +63,9 @@ func (s *Service) GetAllWorkspacesForUser(userID string) ([]*model.Workspace, er
 // GetWorkspaceGuests returns all non-owner users of a workspace
 func (s *Service) GetWorkspaceGuests(workspaceID string) ([]*model.User, error) {
 	return s.stor.GetWorkspaceGuests(workspaceID)
+}
+
+// GetWorkspaceCategories returns all categories of a workspace
+func (s *Service) GetWorkspaceCategories(workspaceID string) ([]*model.SuperCategory, error) {
+	return s.stor.GetWorkspaceCategories(workspaceID)
 }

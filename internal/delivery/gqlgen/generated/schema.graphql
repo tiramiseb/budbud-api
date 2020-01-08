@@ -11,14 +11,19 @@ type Workspace {
   owner: User
   name: String!
   guests: [User!]!
-  # categories: [Category!]!
+  categories: [SuperCategory!]!
 }
 
-# type Category {
-#   id: ID!
-#   name: String!
-#   workspace: Workspace!
-# }
+type SuperCategory {
+  id: ID!
+  name: String!
+  categories: [Category!]!
+}
+
+type Category {
+  id: ID!
+  name: String!
+}
 
 ##### Queries
 

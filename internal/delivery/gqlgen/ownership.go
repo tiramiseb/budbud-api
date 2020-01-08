@@ -10,6 +10,7 @@ type ownershipSrv interface {
 	AddWorkspace(userID, name string) (*model.Workspace, error)
 	GetWorkspaceForUser(userID, id, ownerID, ownerEmail, name string) (*model.Workspace, error)
 	GetAllWorkspacesForUser(userID string) ([]*model.Workspace, error)
+	GetWorkspaceCategories(workspaceID string) ([]*model.SuperCategory, error)
 	GetWorkspaceGuests(workspaceID string) ([]*model.User, error)
 }
 
@@ -42,4 +43,8 @@ func (q *query) Workspaces(ctx context.Context) ([]*model.Workspace, error) {
 
 func (w *workspace) Guests(ctx context.Context, workspace *model.Workspace) ([]*model.User, error) {
 	return w.srv.ownership.GetWorkspaceGuests(workspace.ID)
+}
+
+func (w *workspace) Categories(ctx context.Context, workspace *model.Workspace) ([]*model.SuperCategory, error) {
+	return w.srv.ownership.GetWorkspaceCategories(workspace.ID)
 }

@@ -18,7 +18,7 @@ CREATE TABLE token (
 
 CREATE TABLE workspace (
   id INTEGER PRIMARY KEY,
-  owner_email TEXT,
+  owner_email TEXT NOT NULL,
   name TEXT,
   UNIQUE(owner_email, name),
   FOREIGN KEY(owner_email) REFERENCES user(email)
@@ -29,4 +29,18 @@ CREATE TABLE workspace_guest (
   user_email TEXT NOT NULL,
   FOREIGN KEY(workspace_id) REFERENCES workspace(id),
   FOREIGN KEY(user_email) REFERENCES user(email)
+);
+
+CREATE TABLE supercategory (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  workspace_id TEXT NOT NULL,
+  FOREIGN KEY(workspace_id) REFERENCES workspace(id)
+);
+
+CREATE TABLE category (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  supercategory_id TEXT NOT NULL,
+  FOREIGN KEY(supercategory_id) REFERENCES supercategory(id)
 );
